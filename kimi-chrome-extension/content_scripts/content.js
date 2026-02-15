@@ -117,7 +117,7 @@
   }
 
   // 提取小红书数据
-  function extractXiaohongshuData() {
+  async function extractXiaohongshuData(autoLoadComments = true) {
     const data = {
       title: '',
       content: '',
@@ -136,7 +136,9 @@
         images: [],
         videos: []
       },
-      comments: []
+      comments: [],
+      commentsLoaded: false,
+      totalCommentsLoaded: 0
     };
 
     try {
