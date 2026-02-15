@@ -10,12 +10,36 @@
 
   // 监听来自 popup 或 background 的消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'extractPageContent') {
-      extractPageContent(request.autoLoadComments).then(sendResponse);
-      return true; // 保持消息通道开放
-    } else if (request.action === 'highlightElement') {
-      highlightElement(request.selector);
-      sendResponse({ success: true });
+    try {
+      if (request.action === 'extractPageContent') {
+        extractPageContent(request.autoLoadComments).then(result => {
+          try {
+            sendResponse(result);
+          } catch (e) {
+            console.log('Extension context invalidated during response');
+          }
+        }).catch(error => {
+          console.error('提取页面内容失败:', error);
+          try {
+            sendResponse({ success: false, error: error.message });
+          } catch (e) {
+            console.log('Extension context invalidated during error response');
+          }
+        });
+        return true; // 保持消息通道开放
+      } else if (request.action === 'highlightElement') {
+        highlightElement(request.selector);
+        try {
+          sendResponse({ success: true });
+        } catch (e) {
+          console.log('Extension context invalidated');
+        }
+      }
+    } catch (error) {
+      console.error('Message handler error:', error);
+      if (error.message && error.message.includes('Extension context invalidated')) {
+        console.log('Extension was reloaded, content script needs refresh');
+      }
     }
   });
 
@@ -982,16 +1006,31 @@
       <div class="kimi-floating-text">Kimi 分析</div>
     `;
     button.addEventListener('click', async () => {
-      const content = await extractPageContent();
-      chrome.runtime.sendMessage({
-        action: 'openSidePanel'
-      });
-      setTimeout(() => {
+      try {
+        const content = await extractPageContent();
         chrome.runtime.sendMessage({
-          action: 'startAnalysis',
-          data: content.data
+          action: 'openSidePanel'
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.log('Extension context invalidated, please refresh the page');
+            alert('扩展已更新，请刷新页面后重试');
+            return;
+          }
+          setTimeout(() => {
+            try {
+              chrome.runtime.sendMessage({
+                action: 'startAnalysis',
+                data: content.data
+              });
+            } catch (e) {
+              console.log('Failed to send analysis data');
+            }
+          }, 500);
         });
-      }, 500);
+      } catch (error) {
+        console.error('Failed to extract content:', error);
+        alert('提取内容失败，请刷新页面后重试');
+      }
     });
 
     document.body.appendChild(button);
