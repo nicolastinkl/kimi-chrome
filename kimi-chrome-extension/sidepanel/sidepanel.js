@@ -8,6 +8,7 @@ class KimiSidePanel {
     this.model = 'moonshot-v1-8k';
     this.isAnalyzing = false;
     this.attachedImages = [];
+    this.autoLoadComments = true; // 默认自动加载评论
     
     this.init();
   }
@@ -25,17 +26,20 @@ class KimiSidePanel {
       const result = await chrome.storage.local.get([
         'kimiApiKey', 
         'kimiModel', 
-        'kimiApiType'
+        'kimiApiType',
+        'autoLoadComments'
       ]);
       
       this.apiKey = result.kimiApiKey || '';
       this.apiType = result.kimiApiType || 'moonshot';
       this.model = result.kimiModel || 'moonshot-v1-8k';
+      this.autoLoadComments = result.autoLoadComments !== false; // 默认为 true
       
       // 更新设置面板
       document.getElementById('settingsApiKey').value = this.apiKey;
       document.getElementById('settingsApiType').value = this.apiType;
       document.getElementById('settingsModel').value = this.model;
+      document.getElementById('autoLoadComments').checked = this.autoLoadComments;
       
       // 根据 API 类型更新界面
       this.updateSettingsUIForApiType(this.apiType);
@@ -343,6 +347,7 @@ class KimiSidePanel {
     const apiKey = document.getElementById('settingsApiKey').value.trim();
     const apiType = document.getElementById('settingsApiType').value;
     const model = document.getElementById('settingsModel').value;
+    const autoLoadComments = document.getElementById('autoLoadComments').checked;
     const messageEl = document.getElementById('settingsMessage');
 
     // 只有非 kimi-code 模式才强制要求 API Key
@@ -361,12 +366,14 @@ class KimiSidePanel {
       await chrome.storage.local.set({
         kimiApiKey: apiKey,
         kimiApiType: apiType,
-        kimiModel: model
+        kimiModel: model,
+        autoLoadComments: autoLoadComments
       });
       
       this.apiKey = apiKey;
       this.apiType = apiType;
       this.model = model;
+      this.autoLoadComments = autoLoadComments;
       
       this.updateApiInfo();
       this.showSettingsMessage('设置已保存！', 'success');

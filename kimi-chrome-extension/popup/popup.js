@@ -172,8 +172,15 @@ async function analyzeCurrentPage() {
     // 先打开侧边栏
     await chrome.sidePanel.open({ windowId: tab.windowId });
     
+    // 获取自动加载评论设置
+    const settings = await chrome.storage.local.get(['autoLoadComments']);
+    const autoLoadComments = settings.autoLoadComments !== false; // 默认为 true
+    
     // 向内容脚本发送消息，获取页面内容
-    chrome.tabs.sendMessage(tab.id, { action: 'extractPageContent' }, async (response) => {
+    chrome.tabs.sendMessage(tab.id, { 
+      action: 'extractPageContent',
+      autoLoadComments: autoLoadComments
+    }, async (response) => {
       if (chrome.runtime.lastError) {
         console.error('发送消息失败:', chrome.runtime.lastError);
         // 尝试注入内容脚本
@@ -183,7 +190,10 @@ async function analyzeCurrentPage() {
         });
         // 重新发送消息
         setTimeout(() => {
-          chrome.tabs.sendMessage(tab.id, { action: 'extractPageContent' });
+          chrome.tabs.sendMessage(tab.id, { 
+            action: 'extractPageContent',
+            autoLoadComments: autoLoadComments
+          });
         }, 100);
         return;
       }

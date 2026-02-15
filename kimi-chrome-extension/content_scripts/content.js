@@ -11,7 +11,7 @@
   // 监听来自 popup 或 background 的消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'extractPageContent') {
-      extractPageContent().then(sendResponse);
+      extractPageContent(request.autoLoadComments).then(sendResponse);
       return true; // 保持消息通道开放
     } else if (request.action === 'highlightElement') {
       highlightElement(request.selector);
@@ -20,14 +20,14 @@
   });
 
   // 提取页面内容
-  async function extractPageContent() {
+  async function extractPageContent(autoLoadComments = true) {
     try {
       // 检测是否是小红书网站
       const isXiaohongshu = isXiaohongshuDomain();
       
       if (isXiaohongshu) {
         // 如果是小红书，使用专门的小红书数据提取
-        const xiaohongshuData = extractXiaohongshuData();
+        const xiaohongshuData = await extractXiaohongshuData(autoLoadComments);
         return {
           success: true,
           data: {
@@ -298,7 +298,18 @@
       }
 
       // 6. 提取评论数据
-      data.comments = extractXiaohongshuComments();
+      if (autoLoadComments) {
+        // 自动加载所有评论
+        const loadResult = await loadAllXiaohongshuComments();
+        data.comments = loadResult.comments;
+        data.commentsLoaded = loadResult.loaded;
+        data.totalCommentsLoaded = loadResult.totalLoaded;
+      } else {
+        // 只提取当前可见的评论
+        data.comments = extractXiaohongshuComments();
+        data.commentsLoaded = true;
+        data.totalCommentsLoaded = data.comments.length;
+      }
 
     } catch (error) {
       console.error('提取小红书数据失败:', error);
@@ -464,6 +475,167 @@
     }
 
     return comments;
+  }
+
+  // 自动加载所有小红书评论
+  async function loadAllXiaohongshuComments() {
+    const allComments = [];
+    let previousCommentCount = 0;
+    let noChangeCount = 0;
+    const maxNoChange = 3; // 连续3次没有新评论则停止
+    const maxScrollAttempts = 50; // 最大滚动次数
+    
+    console.log('开始自动加载小红书评论...');
+    
+    // 查找评论容器
+    const commentContainerSelectors = [
+      '.comments',
+      '.comment-list',
+      '.comments-container',
+      '.note-comments',
+      '[data-testid="comment-list"]',
+      '.comment-section',
+      '.main-container .comments-area'
+    ];
+    
+    let commentContainer = null;
+    for (const selector of commentContainerSelectors) {
+      commentContainer = document.querySelector(selector);
+      if (commentContainer) {
+        console.log('找到评论容器:', selector);
+        break;
+      }
+    }
+    
+    // 如果没有找到容器，尝试查找评论项的父容器
+    if (!commentContainer) {
+      const commentItems = document.querySelectorAll('.comment-item, .comment, [data-testid="comment-item"]');
+      if (commentItems.length > 0) {
+        commentContainer = commentItems[0].parentElement;
+        console.log('使用评论项父元素作为容器');
+      }
+    }
+    
+    if (!commentContainer) {
+      console.log('未找到评论容器，提取当前可见评论');
+      return extractXiaohongshuComments();
+    }
+    
+    // 滚动加载循环
+    for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+      // 提取当前可见的评论
+      const currentComments = extractXiaohongshuComments();
+      
+      // 合并新评论（去重）
+      currentComments.forEach(comment => {
+        const isDuplicate = allComments.some(existing => 
+          existing.content === comment.content && 
+          existing.author?.nickname === comment.author?.nickname
+        );
+        if (!isDuplicate && comment.content) {
+          allComments.push(comment);
+        }
+      });
+      
+      console.log(`第 ${attempt + 1} 次滚动，当前共 ${allComments.length} 条评论`);
+      
+      // 检查是否有新评论
+      if (allComments.length === previousCommentCount) {
+        noChangeCount++;
+        if (noChangeCount >= maxNoChange) {
+          console.log('连续多次没有新评论，停止加载');
+          break;
+        }
+      } else {
+        noChangeCount = 0;
+        previousCommentCount = allComments.length;
+      }
+      
+      // 滚动到容器底部
+      const scrollHeight = commentContainer.scrollHeight;
+      commentContainer.scrollTo({
+        top: scrollHeight,
+        behavior: 'smooth'
+      });
+      
+      // 同时滚动页面主容器（有些网站使用页面滚动）
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: 'smooth'
+      });
+      
+      // 等待新内容加载
+      await sleep(1500);
+      
+      // 尝试点击"加载更多"按钮
+      const loadMoreBtn = findLoadMoreButton();
+      if (loadMoreBtn) {
+        console.log('点击加载更多按钮');
+        loadMoreBtn.click();
+        await sleep(1000);
+      }
+    }
+    
+    console.log(`评论加载完成，共 ${allComments.length} 条评论`);
+    return {
+      comments: allComments,
+      loaded: true,
+      totalLoaded: allComments.length
+    };
+  }
+  
+  // 查找"加载更多"按钮
+  function findLoadMoreButton() {
+    const btnSelectors = [
+      '.load-more',
+      '.load-more-btn',
+      '.show-more',
+      '.show-more-comments',
+      '.fetch-more',
+      '.fetch-more-comments',
+      '[data-testid="load-more"]',
+      'button:contains("加载更多")',
+      'button:contains("查看更多")',
+      'button:contains("展开")',
+      '.comment-load-more',
+      '.comments-load-more'
+    ];
+    
+    for (const selector of btnSelectors) {
+      // 处理 :contains 伪类
+      if (selector.includes(':contains')) {
+        const baseSelector = selector.split(':contains')[0];
+        const text = selector.match(/"([^"]+)"/)?.[1];
+        const elements = document.querySelectorAll(baseSelector);
+        for (const el of elements) {
+          if (el.textContent.includes(text) && isElementVisible(el)) {
+            return el;
+          }
+        }
+      } else {
+        const btn = document.querySelector(selector);
+        if (btn && isElementVisible(btn)) {
+          return btn;
+        }
+      }
+    }
+    return null;
+  }
+  
+  // 检查元素是否可见
+  function isElementVisible(el) {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && 
+           rect.height > 0 && 
+           style.visibility !== 'hidden' && 
+           style.display !== 'none' &&
+           style.opacity !== '0';
+  }
+  
+  // 延迟函数
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // 解析数字（处理 "1.2万" 等格式）
