@@ -22,6 +22,28 @@
   // 提取页面内容
   async function extractPageContent() {
     try {
+      // 检测是否是小红书网站
+      const isXiaohongshu = isXiaohongshuDomain();
+      
+      if (isXiaohongshu) {
+        // 如果是小红书，使用专门的小红书数据提取
+        const xiaohongshuData = extractXiaohongshuData();
+        return {
+          success: true,
+          data: {
+            pageInfo: {
+              url: window.location.href,
+              title: document.title,
+              siteName: '小红书',
+              timestamp: new Date().toISOString()
+            },
+            platform: 'xiaohongshu',
+            xiaohongshuData,
+            structure: analyzePageStructure()
+          }
+        };
+      }
+
       // 获取页面基本信息
       const pageInfo = {
         url: window.location.href,
@@ -60,6 +82,411 @@
         error: error.message
       };
     }
+  }
+
+  // 检测是否是小红书域名
+  function isXiaohongshuDomain() {
+    const hostname = window.location.hostname;
+    return hostname.includes('xiaohongshu.com') || 
+           hostname.includes('xhslink.com') ||
+           hostname.includes('xiaohongshu');
+  }
+
+  // 提取小红书数据
+  function extractXiaohongshuData() {
+    const data = {
+      title: '',
+      content: '',
+      author: {
+        nickname: '',
+        userId: '',
+        avatar: '',
+        link: ''
+      },
+      stats: {
+        likes: 0,
+        favorites: 0,
+        comments: 0
+      },
+      media: {
+        images: [],
+        videos: []
+      },
+      comments: []
+    };
+
+    try {
+      // 1. 提取标题
+      const titleSelectors = [
+        'h1.title',
+        'h1',
+        '.note-title',
+        '.title',
+        '[data-testid="note-title"]',
+        '.note-content h1',
+        '.main-content h1'
+      ];
+      
+      for (const selector of titleSelectors) {
+        const titleEl = document.querySelector(selector);
+        if (titleEl && titleEl.innerText.trim()) {
+          data.title = titleEl.innerText.trim();
+          break;
+        }
+      }
+
+      // 2. 提取正文内容
+      const contentSelectors = [
+        '.note-content .content',
+        '.note-content',
+        '.content',
+        '.desc',
+        '.note-desc',
+        '[data-testid="note-content"]',
+        '.main-content .desc',
+        '.detail-content'
+      ];
+      
+      for (const selector of contentSelectors) {
+        const contentEl = document.querySelector(selector);
+        if (contentEl && contentEl.innerText.trim()) {
+          data.content = contentEl.innerText.trim();
+          break;
+        }
+      }
+
+      // 3. 提取作者信息
+      const authorSelectors = [
+        '.author-info',
+        '.user-info',
+        '.author',
+        '.publisher',
+        '[data-testid="author-info"]',
+        '.note-author'
+      ];
+      
+      for (const selector of authorSelectors) {
+        const authorEl = document.querySelector(selector);
+        if (authorEl) {
+          // 提取昵称
+          const nicknameSelectors = ['.nickname', '.name', '.username', 'a span', '.user-name', 'span'];
+          for (const nameSelector of nicknameSelectors) {
+            const nameEl = authorEl.querySelector(nameSelector);
+            if (nameEl && nameEl.innerText.trim()) {
+              data.author.nickname = nameEl.innerText.trim();
+              break;
+            }
+          }
+          
+          // 提取用户ID/链接
+          const userLink = authorEl.querySelector('a');
+          if (userLink) {
+            data.author.link = userLink.href;
+            const userIdMatch = userLink.href.match(/user\/([^\/\?]+)/);
+            if (userIdMatch) {
+              data.author.userId = userIdMatch[1];
+            }
+          }
+          
+          // 提取头像
+          const avatarEl = authorEl.querySelector('img');
+          if (avatarEl) {
+            data.author.avatar = avatarEl.src || avatarEl.dataset.src || '';
+          }
+          
+          break;
+        }
+      }
+
+      // 4. 提取统计数据（点赞、收藏、评论数）
+      const statsSelectors = [
+        '.interaction-container',
+        '.stats',
+        '.note-stats',
+        '.interaction',
+        '.actions',
+        '[data-testid="note-stats"]'
+      ];
+      
+      for (const selector of statsSelectors) {
+        const statsEl = document.querySelector(selector);
+        if (statsEl) {
+          // 点赞数
+          const likeSelectors = ['.like', '.likes', '.liked', '[data-type="like"]', '.icon-like + span', '.icon-like + div'];
+          for (const likeSelector of likeSelectors) {
+            const likeEl = statsEl.querySelector(likeSelector);
+            if (likeEl) {
+              const likeText = likeEl.innerText.trim();
+              data.stats.likes = parseNumber(likeText);
+              break;
+            }
+          }
+          
+          // 收藏数
+          const favSelectors = ['.favorite', '.favorites', '.collect', '.collected', '[data-type="favorite"]', '.icon-star + span', '.icon-star + div'];
+          for (const favSelector of favSelectors) {
+            const favEl = statsEl.querySelector(favSelector);
+            if (favEl) {
+              const favText = favEl.innerText.trim();
+              data.stats.favorites = parseNumber(favText);
+              break;
+            }
+          }
+          
+          // 评论数
+          const commentSelectors = ['.comment', '.comments', '[data-type="comment"]', '.icon-comment + span', '.icon-comment + div'];
+          for (const commentSelector of commentSelectors) {
+            const commentEl = statsEl.querySelector(commentSelector);
+            if (commentEl) {
+              const commentText = commentEl.innerText.trim();
+              data.stats.comments = parseNumber(commentText);
+              break;
+            }
+          }
+          
+          break;
+        }
+      }
+
+      // 5. 提取图片/视频链接
+      // 图片
+      const imageSelectors = [
+        '.note-content img',
+        '.swiper-slide img',
+        '.image-container img',
+        '.media-container img',
+        '.note-images img',
+        'img[src*="xhs"]'
+      ];
+      
+      const seenImages = new Set();
+      for (const selector of imageSelectors) {
+        const images = document.querySelectorAll(selector);
+        images.forEach(img => {
+          let src = img.src || img.dataset.src || img.dataset.original || '';
+          if (src && !seenImages.has(src) && src.startsWith('http')) {
+            seenImages.add(src);
+            data.media.images.push({
+              url: src,
+              alt: img.alt || '',
+              width: img.naturalWidth || img.width || 0,
+              height: img.naturalHeight || img.height || 0
+            });
+          }
+        });
+      }
+
+      // 视频
+      const videoSelectors = [
+        'video',
+        '.video-player video',
+        '.video-container video',
+        'video[src]'
+      ];
+      
+      for (const selector of videoSelectors) {
+        const videos = document.querySelectorAll(selector);
+        videos.forEach(video => {
+          const src = video.src || video.querySelector('source')?.src || '';
+          if (src) {
+            data.media.videos.push({
+              url: src,
+              poster: video.poster || ''
+            });
+          }
+        });
+      }
+
+      // 6. 提取评论数据
+      data.comments = extractXiaohongshuComments();
+
+    } catch (error) {
+      console.error('提取小红书数据失败:', error);
+    }
+
+    return data;
+  }
+
+  // 提取小红书评论数据
+  function extractXiaohongshuComments() {
+    const comments = [];
+    
+    try {
+      // 评论列表容器选择器
+      const commentListSelectors = [
+        '.comments',
+        '.comment-list',
+        '.comments-container',
+        '.note-comments',
+        '[data-testid="comment-list"]',
+        '.comment-section'
+      ];
+      
+      let commentListEl = null;
+      for (const selector of commentListSelectors) {
+        commentListEl = document.querySelector(selector);
+        if (commentListEl) break;
+      }
+
+      if (!commentListEl) {
+        // 尝试在整个文档中查找评论项
+        commentListEl = document.body;
+      }
+
+      // 评论项选择器
+      const commentItemSelectors = [
+        '.comment-item',
+        '.comment',
+        '.comment-card',
+        '[data-testid="comment-item"]',
+        '.comment-wrapper'
+      ];
+      
+      let commentItems = [];
+      for (const selector of commentItemSelectors) {
+        commentItems = commentListEl.querySelectorAll(selector);
+        if (commentItems.length > 0) break;
+      }
+
+      commentItems.forEach((item, index) => {
+        try {
+          const comment = {
+            id: index + 1,
+            content: '',
+            author: {
+              nickname: '',
+              userId: '',
+              avatar: ''
+            },
+            likes: 0,
+            time: '',
+            replies: []
+          };
+
+          // 提取评论内容
+          const contentSelectors = ['.comment-content', '.text', '.content', '.comment-text', 'p'];
+          for (const selector of contentSelectors) {
+            const contentEl = item.querySelector(selector);
+            if (contentEl && contentEl.innerText.trim()) {
+              comment.content = contentEl.innerText.trim();
+              break;
+            }
+          }
+
+          // 提取评论者信息
+          const userSelectors = ['.user-info', '.user', '.author', '.comment-author'];
+          for (const selector of userSelectors) {
+            const userEl = item.querySelector(selector);
+            if (userEl) {
+              const nameSelectors = ['.nickname', '.name', '.username', 'span'];
+              for (const nameSelector of nameSelectors) {
+                const nameEl = userEl.querySelector(nameSelector);
+                if (nameEl && nameEl.innerText.trim()) {
+                  comment.author.nickname = nameEl.innerText.trim();
+                  break;
+                }
+              }
+              
+              const avatarEl = userEl.querySelector('img');
+              if (avatarEl) {
+                comment.author.avatar = avatarEl.src || '';
+              }
+              
+              break;
+            }
+          }
+
+          // 提取点赞数
+          const likeSelectors = ['.like', '.likes', '.like-count', '.thumb'];
+          for (const selector of likeSelectors) {
+            const likeEl = item.querySelector(selector);
+            if (likeEl) {
+              const likeText = likeEl.innerText.trim();
+              comment.likes = parseNumber(likeText);
+              break;
+            }
+          }
+
+          // 提取时间
+          const timeSelectors = ['.time', '.date', '.timestamp'];
+          for (const selector of timeSelectors) {
+            const timeEl = item.querySelector(selector);
+            if (timeEl && timeEl.innerText.trim()) {
+              comment.time = timeEl.innerText.trim();
+              break;
+            }
+          }
+
+          // 提取回复
+          const replySelectors = ['.reply', '.replies', '.reply-list', '.sub-comment'];
+          for (const selector of replySelectors) {
+            const replyContainer = item.querySelector(selector);
+            if (replyContainer) {
+              const replyItems = replyContainer.querySelectorAll('.reply-item, .sub-comment-item, .reply');
+              replyItems.forEach((replyItem, replyIndex) => {
+                const reply = {
+                  id: `${index + 1}-${replyIndex + 1}`,
+                  content: '',
+                  author: {
+                    nickname: ''
+                  }
+                };
+
+                const replyContentEl = replyItem.querySelector('.content, .text, .reply-content, p');
+                if (replyContentEl) {
+                  reply.content = replyContentEl.innerText.trim();
+                }
+
+                const replyAuthorEl = replyItem.querySelector('.nickname, .name, .username');
+                if (replyAuthorEl) {
+                  reply.author.nickname = replyAuthorEl.innerText.trim();
+                }
+
+                if (reply.content) {
+                  comment.replies.push(reply);
+                }
+              });
+              
+              break;
+            }
+          }
+
+          if (comment.content) {
+            comments.push(comment);
+          }
+        } catch (err) {
+          console.warn('处理评论项失败:', err);
+        }
+      });
+
+    } catch (error) {
+      console.error('提取评论失败:', error);
+    }
+
+    return comments;
+  }
+
+  // 解析数字（处理 "1.2万" 等格式）
+  function parseNumber(text) {
+    if (!text) return 0;
+    
+    text = text.toString().trim();
+    
+    // 处理 "万"
+    if (text.includes('万')) {
+      const num = parseFloat(text.replace('万', ''));
+      return Math.round(num * 10000);
+    }
+    
+    // 处理 "k" 或 "K"
+    if (text.toLowerCase().includes('k')) {
+      const num = parseFloat(text.replace(/[kK]/, ''));
+      return Math.round(num * 1000);
+    }
+    
+    // 处理普通数字
+    const num = parseInt(text.replace(/[^\d]/g, ''));
+    return isNaN(num) ? 0 : num;
   }
 
   // 获取 meta 标签内容

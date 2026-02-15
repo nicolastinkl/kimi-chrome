@@ -167,7 +167,11 @@ class KimiSidePanel {
     document.getElementById('welcomeMessage').style.display = 'none';
     
     // 显示页面信息卡片
-    this.showPageInfo(data.pageInfo, data.mainContent, data.structure);
+    if (data.platform === 'xiaohongshu') {
+      this.showXiaohongshuPageInfo(data.pageInfo, data.xiaohongshuData);
+    } else {
+      this.showPageInfo(data.pageInfo, data.mainContent, data.structure);
+    }
     
     // 构建分析提示
     const analysisPrompt = this.buildAnalysisPrompt(data);
@@ -194,8 +198,32 @@ class KimiSidePanel {
     card.style.display = 'block';
   }
 
+  // 显示小红书页面信息
+  showXiaohongshuPageInfo(pageInfo, xhsData) {
+    const card = document.getElementById('pageInfoCard');
+    
+    document.getElementById('pageFavicon').src = xhsData.author?.avatar || '../icons/icon32.png';
+    document.getElementById('pageTitle').textContent = xhsData.title || '小红书笔记';
+    document.getElementById('pageUrl').textContent = `@${xhsData.author?.nickname || '未知用户'}`;
+    
+    const statsHtml = `
+      <span>❤️ ${(xhsData.stats?.likes || 0).toLocaleString()}</span>
+      <span>⭐ ${(xhsData.stats?.collects || 0).toLocaleString()}</span>
+      <span>💬 ${(xhsData.stats?.comments || 0).toLocaleString()}</span>
+      <span>📝 ${xhsData.comments?.length || 0} 条评论已提取</span>
+    `;
+    document.getElementById('pageStats').innerHTML = statsHtml;
+    
+    card.style.display = 'block';
+  }
+
   // 构建分析提示
   buildAnalysisPrompt(data) {
+    // 小红书数据处理
+    if (data.platform === 'xiaohongshu' && data.xiaohongshuData) {
+      return this.buildXiaohongshuPrompt(data.xiaohongshuData);
+    }
+    
     const { pageInfo, mainContent, images, structure } = data;
     
     let prompt = `请分析以下网页内容：\n\n`;
@@ -230,6 +258,82 @@ class KimiSidePanel {
     prompt += `2. 关键信息提取\n`;
     prompt += `3. 主要观点和结论\n`;
     prompt += `4. 如果有图片，分析图片与内容的关系\n`;
+    
+    return prompt;
+  }
+
+  // 构建小红书分析提示
+  buildXiaohongshuPrompt(xhsData) {
+    let prompt = `请分析以下小红书笔记及其评论数据：\n\n`;
+    
+    // 笔记信息
+    prompt += `📱 **笔记信息**\n`;
+    prompt += `- 标题：${xhsData.title || '无标题'}\n`;
+    prompt += `- 作者：@${xhsData.author?.nickname || '未知'} (ID: ${xhsData.author?.userId || '未知'})\n`;
+    prompt += `- 点赞：${(xhsData.stats?.likes || 0).toLocaleString()}\n`;
+    prompt += `- 收藏：${(xhsData.stats?.collects || 0).toLocaleString()}\n`;
+    prompt += `- 评论数：${(xhsData.stats?.comments || 0).toLocaleString()}\n\n`;
+    
+    // 笔记内容
+    if (xhsData.content) {
+      prompt += `📝 **笔记内容**\n${xhsData.content.substring(0, 3000)}\n\n`;
+    }
+    
+    // 媒体资源
+    if (xhsData.media?.images?.length > 0) {
+      prompt += `🖼️ **图片资源** (${xhsData.media.images.length}张)\n`;
+      xhsData.media.images.slice(0, 5).forEach((img, i) => {
+        prompt += `${i + 1}. ${img}\n`;
+      });
+      prompt += `\n`;
+    }
+    
+    if (xhsData.media?.video) {
+      prompt += `🎥 **视频资源**：${xhsData.media.video}\n\n`;
+    }
+    
+    // 评论数据
+    if (xhsData.comments && xhsData.comments.length > 0) {
+      prompt += `💬 **评论分析** (共${xhsData.comments.length}条)\n\n`;
+      
+      // 按点赞数排序，取前20条热门评论
+      const sortedComments = [...xhsData.comments]
+        .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+        .slice(0, 20);
+      
+      sortedComments.forEach((comment, i) => {
+        prompt += `**评论 ${i + 1}**\n`;
+        prompt += `- 用户：@${comment.author?.nickname || '匿名'}\n`;
+        prompt += `- 内容：${comment.content}\n`;
+        prompt += `- 点赞：${(comment.likes || 0).toLocaleString()}\n`;
+        if (comment.time) {
+          prompt += `- 时间：${comment.time}\n`;
+        }
+        
+        // 回复
+        if (comment.replies && comment.replies.length > 0) {
+          prompt += `- 回复：${comment.replies.length}条\n`;
+          comment.replies.slice(0, 3).forEach((reply, j) => {
+            prompt += `  ↳ @${reply.author?.nickname || '匿名'}: ${reply.content.substring(0, 100)}\n`;
+          });
+        }
+        prompt += `\n`;
+      });
+      
+      prompt += `\n📊 **请提供以下分析**：\n`;
+      prompt += `1. 笔记内容的核心主题和要点\n`;
+      prompt += `2. 评论情感分析（正面/负面/中性比例）\n`;
+      prompt += `3. 用户关注的热点话题和疑问\n`;
+      prompt += `4. 有价值的用户反馈和建议\n`;
+      prompt += `5. 互动数据分析（哪些评论最受欢迎）\n`;
+      prompt += `6. 针对笔记内容的优化建议\n`;
+    } else {
+      prompt += `\n📊 **请提供以下分析**：\n`;
+      prompt += `1. 笔记内容的核心主题和要点\n`;
+      prompt += `2. 内容质量和表达风格评价\n`;
+      prompt += `3. 潜在的受众群体分析\n`;
+      prompt += `4. 内容优化建议\n`;
+    }
     
     return prompt;
   }
@@ -696,6 +800,12 @@ class KimiSidePanel {
     
     container.appendChild(messageDiv);
     
+    // 添加代码复制按钮
+    this.addCodeCopyButtons(messageDiv);
+    
+    // 处理任务列表交互
+    this.initTaskListInteraction(messageDiv);
+    
     // 保存到历史
     this.messages.push({
       role: role,
@@ -707,42 +817,146 @@ class KimiSidePanel {
     this.scrollToBottom();
   }
 
+  // 初始化 Marked 和代码高亮
+  initMarked() {
+    // 配置 marked 选项
+    marked.setOptions({
+      gfm: true,              // 启用 GitHub Flavored Markdown
+      tables: true,           // 启用表格支持
+      breaks: true,           // 启用换行符转换
+      pedantic: false,        // 不启用严格模式
+      sanitize: false,        // 使用 DOMPurify 进行净化，不使用 marked 的内置净化
+      smartLists: true,       // 启用智能列表
+      smartypants: true,      // 启用智能标点
+      xhtml: false            // 不强制 XHTML 自闭合标签
+    });
+
+    // 配置代码高亮
+    marked.setOptions({
+      highlight: function(code, lang) {
+        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+        try {
+          return hljs.highlight(code, { language }).value;
+        } catch (e) {
+          return hljs.highlightAuto(code).value;
+        }
+      }
+    });
+  }
+
   // 格式化 Markdown
   formatMarkdown(text) {
     if (!text) return '';
-    
-    // 转义 HTML
-    let html = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    
-    // 代码块
-    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-    
-    // 行内代码
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-    // 粗体
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    
-    // 斜体
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    
-    // 链接
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-    
-    // 无序列表
-    html = html.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-    
-    // 有序列表
-    html = html.replace(/^\s*\d+\.\s+(.+)$/gm, '<li>$1</li>');
-    
-    // 换行
-    html = html.replace(/\n/g, '<br>');
-    
-    return html;
+
+    // 确保 marked 已初始化
+    if (typeof marked === 'undefined') {
+      console.warn('marked.js not loaded, falling back to plain text');
+      return this.escapeHtml(text).replace(/\n/g, '<br>');
+    }
+
+    // 初始化 marked（首次调用时）
+    if (!this._markedInitialized) {
+      this.initMarked();
+      this._markedInitialized = true;
+    }
+
+    try {
+      // 使用 marked.parse 渲染 Markdown
+      let html = marked.parse(text);
+
+      // 使用 DOMPurify 进行 XSS 防护
+      if (typeof DOMPurify !== 'undefined') {
+        html = DOMPurify.sanitize(html, {
+          ALLOWED_TAGS: [
+            'p', 'br', 'hr', 'div', 'span',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'strong', 'b', 'em', 'i', 'u', 'strike', 'del', 'mark',
+            'code', 'pre', 'kbd', 'samp',
+            'a', 'img',
+            'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+            'table', 'thead', 'tbody', 'tr', 'th', 'td',
+            'blockquote', 'q', 'cite',
+            'sup', 'sub', 'small', 'big',
+            'input' // 用于任务列表复选框
+          ],
+          ALLOWED_ATTR: [
+            'href', 'title', 'target', 'rel',
+            'src', 'alt', 'width', 'height',
+            'class', 'id', 'name',
+            'checked', 'disabled', 'type' // 用于任务列表复选框
+          ],
+          ALLOW_DATA_ATTR: false,
+          SANITIZE_DOM: true
+        });
+      }
+
+      return html;
+    } catch (error) {
+      console.error('Markdown parsing error:', error);
+      // 发生错误时返回转义后的纯文本
+      return this.escapeHtml(text).replace(/\n/g, '<br>');
+    }
+  }
+
+  // HTML 转义辅助函数
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // 添加代码复制按钮
+  addCodeCopyButtons(messageDiv) {
+    const codeBlocks = messageDiv.querySelectorAll('pre code');
+    codeBlocks.forEach(codeBlock => {
+      const pre = codeBlock.parentElement;
+      
+      // 检测语言
+      const language = codeBlock.className.match(/language-(\w+)/)?.[1] || 
+                       codeBlock.className.match(/hljs-(\w+)/)?.[1] || '';
+      if (language) {
+        pre.setAttribute('data-language', language);
+      }
+      
+      // 创建复制按钮
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'code-copy-btn';
+      copyBtn.textContent = '复制';
+      copyBtn.addEventListener('click', () => {
+        const code = codeBlock.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          copyBtn.textContent = '已复制!';
+          copyBtn.classList.add('copied');
+          setTimeout(() => {
+            copyBtn.textContent = '复制';
+            copyBtn.classList.remove('copied');
+          }, 2000);
+        }).catch(err => {
+          console.error('复制失败:', err);
+          copyBtn.textContent = '复制失败';
+          setTimeout(() => {
+            copyBtn.textContent = '复制';
+          }, 2000);
+        });
+      });
+      
+      pre.appendChild(copyBtn);
+    });
+  }
+
+  // 初始化任务列表交互
+  initTaskListInteraction(messageDiv) {
+    const checkboxes = messageDiv.querySelectorAll('.task-list-item input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const listItem = e.target.closest('.task-list-item');
+        if (e.target.checked) {
+          listItem.classList.add('checked');
+        } else {
+          listItem.classList.remove('checked');
+        }
+      });
+    });
   }
 
   // 显示加载动画
