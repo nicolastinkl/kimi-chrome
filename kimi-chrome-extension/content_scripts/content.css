@@ -1,0 +1,91 @@
+/* Kimi 内容脚本样式 */
+
+/* 高亮样式 */
+.kimi-highlight {
+  outline: 3px solid #667eea !important;
+  outline-offset: 2px !important;
+  background-color: rgba(102, 126, 234, 0.1) !important;
+  animation: kimi-pulse 2s ease-in-out infinite !important;
+}
+
+@keyframes kimi-pulse {
+  0%, 100% {
+    outline-color: #667eea;
+    background-color: rgba(102, 126, 234, 0.1);
+  }
+  50% {
+    outline-color: #764ba2;
+    background-color: rgba(118, 75, 162, 0.2);
+  }
+}
+
+/* 浮动按钮样式 */
+#kimi-floating-btn {
+  position: fixed !important;
+  right: 20px !important;
+  bottom: 20px !important;
+  width: 60px !important;
+  height: 60px !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+  z-index: 2147483647 !important;
+  transition: all 0.3s ease !important;
+  user-select: none !important;
+}
+
+#kimi-floating-btn:hover {
+  transform: scale(1.1) !important;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+}
+
+#kimi-floating-btn:active {
+  transform: scale(0.95) !important;
+}
+
+.kimi-floating-icon {
+  font-size: 24px !important;
+  line-height: 1 !important;
+  margin-bottom: 2px !important;
+}
+
+.kimi-floating-text {
+  font-size: 9px !important;
+  color: white !important;
+  font-weight: 600 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* 分析中遮罩 */
+.kimi-analyzing-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 2147483646 !important;
+}
+
+.kimi-analyzing-spinner {
+  width: 50px !important;
+  height: 50px !important;
+  border: 4px solid rgba(255, 255, 255, 0.3) !important;
+  border-top-color: #667eea !important;
+  border-radius: 50% !important;
+  animation: kimi-spin 1s linear infinite !important;
+}
+
+@keyframes kimi-spin {
+  to {
+    transform: rotate(360deg) !important;
+  }
+}

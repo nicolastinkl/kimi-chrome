@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimi AI 对话</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app">
+    <!-- 头部 -->
+    <header class="header">
+      <div class="header-left">
+        <img src="../icons/icon32.png" alt="Kimi" class="header-logo">
+        <div class="header-info">
+          <h1 class="header-title">Kimi AI 助手</h1>
+          <span class="header-status" id="connectionStatus">● 就绪</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="newChatBtn" class="header-btn" title="新对话">
+          <span>+</span>
+        </button>
+        <button id="settingsBtn" class="header-btn" title="设置">
+          <span>⚙️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 页面信息卡片 -->
+    <div class="page-info-card" id="pageInfoCard" style="display: none;">
+      <div class="page-info-header">
+        <img id="pageFavicon" src="" alt="" class="page-favicon">
+        <div class="page-info-text">
+          <h3 id="pageTitle" class="page-title"></h3>
+          <span id="pageUrl" class="page-url"></span>
+        </div>
+      </div>
+      <div class="page-info-stats" id="pageStats"></div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="settings-panel" id="settingsPanel" style="display: none;">
+      <div class="settings-content">
+        <h3>API 设置</h3>
+        
+        <div class="settings-group">
+          <label>API 类型</label>
+          <select id="settingsApiType">
+            <option value="moonshot">Moonshot Kimi API</option>
+            <option value="kimi-code">Kimi Code API</option>
+          </select>
+          <span class="settings-hint" id="settingsApiHint">标准 Kimi API，适合一般对话</span>
+        </div>
+        
+        <div class="settings-group">
+          <label id="settingsApiKeyLabel">Moonshot API Key</label>
+          <div class="input-wrapper">
+            <input type="password" id="settingsApiKey" placeholder="输入您的 API Key">
+            <button id="toggleSettingsApiKey" class="toggle-btn">👁️</button>
+          </div>
+        </div>
+        
+        <div class="settings-group" id="settingsModelGroup">
+          <label>选择模型</label>
+          <select id="settingsModel">
+            <option value="moonshot-v1-8k">Moonshot v1 8k</option>
+            <option value="moonshot-v1-32k">Moonshot v1 32k</option>
+            <option value="moonshot-v1-128k">Moonshot v1 128k</option>
+          </select>
+        </div>
+        
+        <div class="settings-group" id="settingsKimiCodeModelGroup" style="display: none;">
+          <label>模型信息</label>
+          <div class="model-info-box">
+            <span class="model-tag">kimi-for-coding</span>
+            <p class="model-description">专为编程优化的模型，支持 256K 上下文</p>
+          </div>
+        </div>
+        
+        <div class="settings-actions">
+          <button id="saveSettingsBtn" class="btn btn-primary">保存设置</button>
+          <button id="testConnectionBtn" class="btn btn-secondary">测试连接</button>
+          <button id="closeSettingsBtn" class="btn btn-secondary">关闭</button>
+        </div>
+        <div id="settingsMessage" class="settings-message"></div>
+      </div>
+    </div>
+
+    <!-- 消息列表 -->
+    <div class="messages-container" id="messagesContainer">
+      <!-- 欢迎消息 -->
+      <div class="welcome-message" id="welcomeMessage">
+        <div class="welcome-icon">👋</div>
+        <h2>欢迎使用 Kimi AI 助手</h2>
+        <p>我可以帮你分析网页内容、提取关键信息、总结文章要点，或者回答你的任何问题。</p>
+        <div class="quick-actions">
+          <button class="quick-action-btn" data-prompt="请总结这个页面的主要内容">
+            📝 总结页面
+          </button>
+          <button class="quick-action-btn" data-prompt="请提取这个页面的关键信息">
+            🔍 提取关键信息
+          </button>
+          <button class="quick-action-btn" data-prompt="请分析这个页面的图片">
+            🖼️ 分析图片
+          </button>
+          <button class="quick-action-btn" data-prompt="请翻译这个页面的内容">
+            🌐 翻译内容
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea 
+          id="messageInput" 
+          placeholder="输入消息... (Shift+Enter 换行)"
+          rows="1"
+        ></textarea>
+        <div class="input-actions">
+          <button id="attachImageBtn" class="input-btn" title="添加图片">
+            📷
+          </button>
+          <button id="sendBtn" class="send-btn" disabled>
+            <span class="send-icon">➤</span>
+          </button>
+        </div>
+      </div>
+      <div class="input-hint">
+        <span id="inputHint">按 Enter 发送，Shift+Enter 换行</span>
+        <span id="apiInfo" class="api-info"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

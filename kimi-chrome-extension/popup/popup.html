@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimi AI 助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <img src="../icons/icon48.png" alt="Kimi" class="logo">
+      <h1>Kimi AI 助手</h1>
+    </header>
+
+    <div class="settings-section">
+      <h2>API 设置</h2>
+      
+      <!-- API 类型选择 -->
+      <div class="input-group">
+        <label for="apiType">API 类型</label>
+        <select id="apiType">
+          <option value="moonshot">Moonshot Kimi API</option>
+          <option value="kimi-code">Kimi Code (本地 CLI)</option>
+        </select>
+        <span class="input-hint" id="apiTypeHint">标准 Kimi API，适合一般对话</span>
+      </div>
+      
+      <!-- Moonshot API 设置 -->
+      <div id="moonshotSettings">
+        <div class="input-group">
+          <label for="apiKey">Moonshot API Key</label>
+          <div class="password-wrapper">
+            <input type="password" id="apiKey" placeholder="输入您的 API Key">
+            <button id="toggleApiKey" class="toggle-btn">👁️</button>
+          </div>
+        </div>
+        
+        <div class="input-group">
+          <label for="modelSelect">选择模型</label>
+          <select id="modelSelect">
+            <option value="moonshot-v1-8k">Moonshot v1 8k</option>
+            <option value="moonshot-v1-32k">Moonshot v1 32k</option>
+            <option value="moonshot-v1-128k">Moonshot v1 128k</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Kimi Code CLI 设置 -->
+      <div id="kimiCodeSettings" style="display: none;">
+        <div class="cli-info">
+          <div class="cli-status" id="cliStatus">
+            <span class="status-dot unknown"></span>
+            <span class="status-text">检查服务器状态...</span>
+          </div>
+          <button id="checkCliStatus" class="btn btn-small">刷新状态</button>
+        </div>
+        
+        <div class="cli-setup">
+          <h4>使用步骤：</h4>
+          <ol>
+            <li>确保已安装 kimi-cli: <code>pip install kimi-cli</code></li>
+            <li>运行本地桥接服务器:</li>
+          </ol>
+          <div class="code-block">
+            <code>python native-bridge/kimi_server.py</code>
+          </div>
+          <p class="cli-note">服务器将在 <code>http://127.0.0.1:8765</code> 启动</p>
+        </div>
+      </div>
+      
+      <button id="saveSettings" class="btn btn-primary">保存设置</button>
+      <div id="settingsStatus" class="status"></div>
+    </div>
+
+    <div class="actions-section">
+      <h2>快速操作</h2>
+      <button id="analyzeBtn" class="btn btn-accent">
+        <span class="icon">🔍</span>
+        一键分析当前页面
+      </button>
+      <button id="openSidePanel" class="btn btn-secondary">
+        <span class="icon">💬</span>
+        打开对话面板
+      </button>
+    </div>
+
+    <div class="info-section">
+      <p class="hint">💡 提示：首次使用请先配置 API</p>
+      <div class="links">
+        <a href="https://platform.moonshot.cn/" target="_blank" class="link" id="moonshotLink">获取 Moonshot API Key →</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
